@@ -1,6 +1,7 @@
 import re
 from utils.normalizacao import normalizar_texto
 from urllib.parse import urlparse
+from services.url_reputation import validar_url
 
 from utils.regex_patterns import (
     REGEX_LINKS,
@@ -14,52 +15,11 @@ from core.score import (
 )
 
 
-PADROES_ENGENHARIA_SOCIAL = [
-    "aja agora",
-    "ultima chance",
-    "evite bloqueio",
-    "sua conta sera encerrada",
-    "confirme imediatamente",
-    "acesso suspenso",
-    "pagamento pendente",
-    "clique no link",
-    "verificacao obrigatoria"
-]
-
-
-PALAVRAS_SUSPEITAS = [
-    "urgente",
-    "clique aqui",
-    "promocao",
-    "pix",
-    "ganhou",
-    "premio",
-    "bloqueado",
-    "confirme",
-    "atualize",
-    "seguranca",
-    "banco",
-    "senha",
-    "codigo",
-    "verificacao",
-    "acesso",
-    "conta",
-    "liberado",
-    "indenizacao",
-    "multa",
-    "regularize"
-]
-
-
-DOMINIOS_SUSPEITOS = [
-    ".xyz",
-    ".top",
-    ".click",
-    ".info",
-    ".tk",
-    ".ml",
-    ".ga"
-]
+from config.security_rules import (
+    PALAVRAS_SUSPEITAS,
+    PADROES_ENGENHARIA_SOCIAL,
+    DOMINIOS_SUSPEITOS
+)
 
 
 def detectar_links(texto):
@@ -117,6 +77,24 @@ def analisar_texto(texto):
         score_links += len(links) * 2
         motivos.append(f"Foram encontrados {len(links)} link(s) na mensagem.")
 
+    # =========================
+    # VALIDAÇÃO DE URL
+    # =========================
+
+    for link in links:
+
+        reputacao = validar_url(link)
+
+        if not reputacao["valida"]:
+            score_reputacao += 3
+            motivos.append("URL inválida detectada.")
+
+        if reputacao.get("encurtador"):
+            score_reputacao += 2
+            motivos.append(
+                f"Encurtador suspeito detectado: {reputacao['dominio']}"
+            )
+
     if emails:
         score_texto += len(emails)
         motivos.append(f"Foram encontrado(s) {len(emails)} e-mail(s) na mensagem.")
@@ -137,6 +115,10 @@ def analisar_texto(texto):
         score_links += 2
         motivos.append("Link sem HTTPS encontrado.")
 
+    if "http://" in texto.lower() and not links:
+        score_reputacao += 2
+        motivos.append("Possível URL malformada detectada.")
+
     scores = {
         "texto": score_texto,
         "links": score_links,
@@ -149,6 +131,8 @@ def analisar_texto(texto):
     nivel = classificar_risco(score_total)
 
     return {
+        "score": score_total,
+        "nivel_risco": nivel,
         "scores": scores,
         "motivos": motivos,
         "links": links,

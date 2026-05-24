@@ -1,4 +1,4 @@
-REGEX_LINKS = r"https?://\S+|www\.\S+"
+REGEX_LINKS = r"(https?://[^\s]+|www\.[^\s]+)"
 
 REGEX_EMAILS = r"[\w.-]+@[\w.-]+\.\w+"
 
