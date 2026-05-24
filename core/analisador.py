@@ -1,7 +1,10 @@
 import re
 from utils.normalizacao import normalizar_texto
 from urllib.parse import urlparse
-from services.url_reputation import validar_url
+from services.url_reputation import (
+    validar_url,
+    consultar_whois
+)
 
 from utils.regex_patterns import (
     REGEX_LINKS,
@@ -84,6 +87,33 @@ def analisar_texto(texto):
     for link in links:
 
         reputacao = validar_url(link)
+        whois_info = consultar_whois(link)
+
+        if len(link) > 120:
+            score_reputacao += 2
+
+            motivos.append(
+                "URL excessivamente longa detectada."
+            )
+
+        if "erro" not in whois_info:
+
+            idade = whois_info.get("idade_dias")
+
+            if idade is not None and idade < 30:
+                score_reputacao += 3
+
+                motivos.append(
+                    f"Domínio criado recentemente ({idade} dias)."
+                )
+
+        else:
+
+            score_reputacao += 1
+
+            motivos.append(
+                "Não foi possível validar informações WHOIS do domínio."
+            )
 
         if not reputacao["valida"]:
             score_reputacao += 3
